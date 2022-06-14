@@ -20,8 +20,15 @@ public class MineSweeperPanel extends JPanel implements ActionListener {
 
     public final int FIELD_WIDTH; // = BOX_SIZE * BOX_COLUMNS;
     public final int FIELD_HEIGHT; // = BOX_SIZE * BOX_ROWS;
-    private final Image dirtIcon;
     private static boolean initialized = false;
+
+    private final Image dirtIcon;
+    private final Image bombIcon;
+    private final Image flagIcon;
+    private final Image fieldIcon;
+
+
+
 
     private static final MouseAdapter squareListener = new MouseAdapter() {
         @Override
@@ -51,32 +58,24 @@ public class MineSweeperPanel extends JPanel implements ActionListener {
     }
 
     public MineSweeperPanel(int boxSize, int rowAmount, int colAmount) throws IOException {
+
+
         this.addMouseListener(new MyMouseAdapter());
         BOX_SIZE = boxSize;
         BOX_ROWS = rowAmount;
         BOX_COLUMNS = colAmount;
         FIELD_WIDTH = BOX_SIZE * BOX_COLUMNS;
         FIELD_HEIGHT = BOX_SIZE * BOX_ROWS;
-        dirtIcon = ImageIO.read(new File("assets\\block.png")).getScaledInstance(BOX_SIZE, BOX_SIZE, Image.SCALE_SMOOTH);
 
+        dirtIcon = ImageIO.read(new File("assets\\block.png")).getScaledInstance(BOX_SIZE, BOX_SIZE, Image.SCALE_SMOOTH);
+        bombIcon = ImageIO.read(new File("assets\\bomb.png")).getScaledInstance(BOX_SIZE, BOX_SIZE, Image.SCALE_SMOOTH);
+        flagIcon = ImageIO.read(new File("assets/1200px-Minesweeper_flag.svg.png")).getScaledInstance(BOX_SIZE, BOX_SIZE, Image.SCALE_SMOOTH);
+        fieldIcon = ImageIO.read(new File("assets/1200px-Minesweeper_field.svg.png")).getScaledInstance(BOX_SIZE, BOX_SIZE, Image.SCALE_SMOOTH);
 
 
         setLayout(new GridLayout(BOX_ROWS, BOX_COLUMNS));
+
         System.out.println("p.BOX_ROWS: " + BOX_ROWS + " p.BOX_COLUMNS: " + BOX_COLUMNS);
-
-
-        Image dirtIcon = null;
-        Image bombIcon = null;
-        Image flagIcon = null;
-        Image fieldIcon = null;
-        try {
-            dirtIcon = ImageIO.read(new File("assets\\block.png")).getScaledInstance(BOX_SIZE, BOX_SIZE, Image.SCALE_SMOOTH);
-            bombIcon = ImageIO.read(new File("assets\\bomb.png")).getScaledInstance(BOX_SIZE, BOX_SIZE, Image.SCALE_SMOOTH);
-            flagIcon = ImageIO.read(new File("assets/1200px-Minesweeper_flag.svg.png")).getScaledInstance(BOX_SIZE, BOX_SIZE, Image.SCALE_SMOOTH);
-            fieldIcon = ImageIO.read(new File("assets/1200px-Minesweeper_field.svg.png")).getScaledInstance(BOX_SIZE, BOX_SIZE, Image.SCALE_SMOOTH);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
 
 
         for(int i = 0; i < BOX_ROWS * BOX_COLUMNS;i++){
@@ -98,6 +97,8 @@ public class MineSweeperPanel extends JPanel implements ActionListener {
 
 
         setBackground(Color.GREEN);
+
+        mineField = new byte[BOX_ROWS][BOX_COLUMNS];
 
 
     }
