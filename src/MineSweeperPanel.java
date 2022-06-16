@@ -5,8 +5,8 @@ import java.awt.event.*;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Random;
 
 public class MineSweeperPanel extends JPanel{
@@ -19,6 +19,10 @@ public class MineSweeperPanel extends JPanel{
     *      b4:
     *      b3, b2, b1, b0: binary value of surrounding mines
     */
+
+    private static final byte revealStatusByte = 7;
+    private static final byte mineStatusByte = 6;
+    private static final byte flagStatusByte = 5;
 
 
     public final int BOX_SIZE;
@@ -36,32 +40,62 @@ public class MineSweeperPanel extends JPanel{
     private final Image flagIcon;
     private final Image fieldIcon;
 
-    /*
+    private byte[][] mineField;
+    private JButton[][] mineButtons;
+
+
 
     // return the p+1 th rightmost bit
-    public static int getBit(byte n, byte p)
+    public static boolean getBit(byte n, byte p)
     {
         int mask = 1 << p;
-        return (n & mask) >> p;
+        return ((n & mask) >> p) == 1;
     }
 
-    public static int setBit(byte n, byte p, byte b)
+    // sets the p+1 th rightmost bit and returns the new byte
+    public static byte setBit(byte n, byte p, boolean b)
     {
+        byte fin = b ? (byte)1 : (byte)0;
         int mask = 1 << p;
-        return (n & ~mask) |
-                ((b << p) & mask);
-    }
-    */
-
-
-
-    private static void swap(int[] arr, int i, int j){
-        int temp = arr[i];
-        arr[i] = arr[j];
-        arr[j] = temp;
+        return (byte)((n & ~mask) |
+                ((fin << p) & mask));
     }
 
-    private static int[] partiallyShuffle(int k, int excludedIndex, int n){
+    private boolean getRevealStatus(int x, int y){
+        return getBit(mineField[y][x], revealStatusByte);
+    }
+    private void setRevealStatus(int x, int y, boolean status){
+        mineField[y][x] = setBit(mineField[y][x], revealStatusByte, status);
+    }
+
+    private boolean getMineStatus(int x, int y){
+        return getBit(mineField[y][x], mineStatusByte);
+    }
+    private void setMineStatus(int x, int y, boolean status){
+        mineField[y][x] = setBit(mineField[y][x], mineStatusByte, status);
+    }
+
+    private boolean getFlagStatus(int x, int y){
+        return getBit(mineField[y][x], flagStatusByte);
+    }
+    private void setFlagStatus(int x, int y, boolean status){
+        mineField[y][x] = setBit(mineField[y][x], flagStatusByte, status);
+    }
+
+    private void increaseSurroundingMineCounts(int x, int y){
+
+        if(!getMineStatus(x, y)) return;
+
+        for (int i = Math.max(0, y-1); i < Math.min(BOX_ROWS, y+2); i++) {
+            for (int j = Math.max(0, x-1); j < Math.min(BOX_COLUMNS, x+2); j++) {
+                if(! getMineStatus(j, i)){
+                    mineField[i][j] = (byte) (mineField[i][j] + 1);
+                }
+            }
+        }
+    }
+
+    private int[] partiallyShuffle(int k, int excludedIndex, int n){
         // returns k non repeating number with range of [0,n)
         if(k >= n || excludedIndex >= n){
             throw new ArithmeticException("excludedIndex and k argument must be smaller than n");
@@ -70,24 +104,46 @@ public class MineSweeperPanel extends JPanel{
         if(k < 1) return new int[]{};
 
         ArrayList<Integer> arr = new ArrayList<>();
-        int[] newArr = new int[k];
+        HashSet<Integer> numberSet = new HashSet<>();
+
+        int[] reservedRange = new int[]{};
         for (int i = 0; i < n; i++) {
-            if(i != excludedIndex){
-                arr.add(i);
+            numberSet.add(i);
+        }
+
+        int x = excludedIndex % BOX_COLUMNS;
+        int y = excludedIndex / BOX_COLUMNS;
+
+
+        boolean decrease = (k >= n);
+        k = k >= n ? n : k;
+
+        for (int i = Math.max(0, y-1); i < Math.min(BOX_ROWS, y+2); i++) {
+            for (int j = Math.max(0, x-1); j < Math.min(BOX_COLUMNS, x+2); j++) {
+                numberSet.remove(i*BOX_COLUMNS + j);
+                if(decrease){ k--;}
             }
         }
 
-        Collections.shuffle(arr);
 
-        int temp = arr.get(n-2);
-        int rnd = new Random().nextInt(n-1);
-        arr.set(n-2, arr.get(rnd));
+
+        arr.addAll(numberSet);
+        Collections.shuffle(arr);
+        numberSet = null;
+
+
+        int temp = arr.get(arr.size()-1);
+        int rnd = new Random().nextInt(arr.size());
+        arr.set(arr.size()-1, arr.get(rnd));
         arr.set(rnd, temp);
 
+        int[] newArr = new int[Math.min(k, arr.size())];
 
-        for(int i = 0; i < k; i++){
+
+        for(int i = 0; i < Math.min(k, arr.size()); i++){
             newArr[i] = arr.get(i);
         }
+        System.out.println("Size of random shuffled array: " + newArr.length);
 
         return newArr;
 
@@ -100,31 +156,75 @@ public class MineSweeperPanel extends JPanel{
             Rectangle temp = ((JButton)(e.getSource())).getBounds();
             int x = (int)temp.getX()/BOX_SIZE;
             int y = (int)temp.getY()/BOX_SIZE;
-            //mineButtons[y][x].setIcon(new ImageIcon(bombIcon));
+            int tempX, tempY;
 
-            if(initialized){
+            if(!initialized){
 
-                return;
+
+
+
+                int[] bombedFields = partiallyShuffle(MINE_AMOUNT, x + y*BOX_COLUMNS,BOX_ROWS*BOX_COLUMNS);
+
+
+                for(int i = 0;i < bombedFields.length; i++){
+                    tempX = bombedFields[i] % BOX_COLUMNS;
+                    tempY = bombedFields[i] / BOX_COLUMNS;
+                    mineButtons[tempY][tempX].setIcon(new ImageIcon(bombIcon));
+                    setMineStatus(tempX, tempY, true);
+                }
+
+                for(int i = 0;i < bombedFields.length; i++){
+                    tempX = bombedFields[i] % BOX_COLUMNS;
+                    tempY = bombedFields[i] / BOX_COLUMNS;
+                    increaseSurroundingMineCounts(tempX, tempY);
+                }
+
+                // y coordinates
+                for (int i = 0; i < BOX_ROWS; i++) {
+                    // x coordinates
+                    for (int j = 0; j < BOX_COLUMNS; j++) {
+                        if(mineField[i][j] % 16 > 0 && mineField[i][j] % 16 < 9 && !getMineStatus(j, i)){
+                            mineButtons[i][j].setIcon(null);
+                            mineButtons[i][j].setForeground(numberColors[mineField[i][j] % 15]);
+                            mineButtons[i][j].setFont(new Font("Arial",Font.BOLD, BOX_SIZE/2));
+                            mineButtons[i][j].setText(String.valueOf(mineField[i][j] % 16));
+                            setRevealStatus(j, i, true);
+                        }
+                    }
+                }
+
+                initialized = true;
             }
 
 
+            System.out.println(Integer.toBinaryString(mineField[y][x] & 0xFF));
 
-            System.out.println("MINE_AMOUNT: " + MINE_AMOUNT);
-            System.out.println("excludedIndex: " + (x + y*BOX_COLUMNS));
-            System.out.println("n: " + (BOX_ROWS*BOX_COLUMNS));
+            if(!getRevealStatus(x, y)) {
+                switch (e.getButton()) {
+                    // left click
+                    case 1: {
+
+                        if(!getFlagStatus(x, y)){
+                            mineButtons[y][x].setIcon(null);
+                            setRevealStatus(x, y, true);
+                        }
+
+                        break;
+                    }
+                    // right click
+                    case 3: {
+                        if (getFlagStatus(x, y)) {
+                            mineButtons[y][x].setIcon(new ImageIcon(fieldIcon));
+                            setFlagStatus(x, y, false);
+                        } else {
+                            mineButtons[y][x].setIcon(new ImageIcon(flagIcon));
+                            setFlagStatus(x, y, true);
+                        }
 
 
-            int[] bombedFields = partiallyShuffle(MINE_AMOUNT, x + y*BOX_COLUMNS,BOX_ROWS*BOX_COLUMNS);
-
-            for(int i : bombedFields){
-                x = i % BOX_COLUMNS;
-                y = i / BOX_COLUMNS;
-                mineButtons[y][x].setIcon(new ImageIcon(bombIcon));
+                    }
+                }
             }
-
-
-
-            initialized = true;
 
         }
     };
@@ -138,12 +238,9 @@ public class MineSweeperPanel extends JPanel{
             new Color(0x800000), // MAROON
             new Color(0x30D5C8), // TURQUOISE
             Color.BLACK,
-            Color.GRAY
+            Color.GRAY,
+            Color.cyan
     };
-
-
-    private byte[][] mineField;
-    private JButton[][] mineButtons;
 
 
     public MineSweeperPanel() throws IOException {
@@ -162,10 +259,10 @@ public class MineSweeperPanel extends JPanel{
         mineField = new byte[BOX_ROWS][BOX_COLUMNS];
         mineButtons = new JButton[BOX_ROWS][BOX_COLUMNS];
 
-        dirtIcon = ImageIO.read(new File("Testing\\block.png")).getScaledInstance(BOX_SIZE, BOX_SIZE, Image.SCALE_SMOOTH);
-        bombIcon = ImageIO.read(new File("Testing\\bomb.png")).getScaledInstance(BOX_SIZE, BOX_SIZE, Image.SCALE_SMOOTH);
-        flagIcon = ImageIO.read(new File("Testing/1200px-Minesweeper_flag.svg.png")).getScaledInstance(BOX_SIZE, BOX_SIZE, Image.SCALE_SMOOTH);
-        fieldIcon = ImageIO.read(new File("Testing/1200px-Minesweeper_field.svg.png")).getScaledInstance(BOX_SIZE, BOX_SIZE, Image.SCALE_SMOOTH);
+        dirtIcon = ImageIO.read(new File("assets/block.png")).getScaledInstance(BOX_SIZE, BOX_SIZE, Image.SCALE_SMOOTH);
+        bombIcon = ImageIO.read(new File("assets/bomb.png")).getScaledInstance(BOX_SIZE, BOX_SIZE, Image.SCALE_SMOOTH);
+        flagIcon = ImageIO.read(new File("assets/1200px-Minesweeper_flag.svg.png")).getScaledInstance(BOX_SIZE, BOX_SIZE, Image.SCALE_SMOOTH);
+        fieldIcon = ImageIO.read(new File("assets/1200px-Minesweeper_field.svg.png")).getScaledInstance(BOX_SIZE, BOX_SIZE, Image.SCALE_SMOOTH);
 
 
         setLayout(new GridLayout(BOX_ROWS, BOX_COLUMNS));
@@ -174,13 +271,6 @@ public class MineSweeperPanel extends JPanel{
 
 
         for(int i = 0; i < BOX_ROWS * BOX_COLUMNS;i++){
-            /*
-            JButton b = new JButton();
-            b.setText("1");
-            b.setBackground(Color.LIGHT_GRAY); //  exposed field
-            b.setFont(new Font("Arial",Font.PLAIN, BOX_SIZE));
-            b.setMargin(new Insets(0, 0, 0, 0));
-            */
 
             JButton b = new JButton(new ImageIcon(fieldIcon));
             b.setBackground(Color.LIGHT_GRAY);
@@ -195,12 +285,6 @@ public class MineSweeperPanel extends JPanel{
         setBackground(Color.GREEN);
 
     }
-
-    /*
-    @Override
-    public void actionPerformed(ActionEvent e) {
-        System.out.println(e.getActionCommand());
-    }*/
 
     public int getTimeElapsed(){
         return -1;
