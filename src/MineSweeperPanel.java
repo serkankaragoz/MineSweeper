@@ -29,7 +29,7 @@ public class MineSweeperPanel extends JPanel{
 
     public final int BOX_ROWS;
     public final int BOX_COLUMNS;
-    public final int MINE_AMOUNT = 140;
+    public final int MINE_AMOUNT = 24;
 
     public final int FIELD_WIDTH; // = BOX_SIZE * BOX_COLUMNS;
     public final int FIELD_HEIGHT; // = BOX_SIZE * BOX_ROWS;
@@ -39,6 +39,7 @@ public class MineSweeperPanel extends JPanel{
     private final Image bombIcon;
     private final Image flagIcon;
     private final Image fieldIcon;
+    private boolean isGameOver = false;
 
     private byte[][] mineField;
     private JButton[][] mineButtons;
@@ -95,6 +96,52 @@ public class MineSweeperPanel extends JPanel{
         }
     }
 
+    private byte getSurroundingFlags(int x, int y){
+        byte counter = 0;
+
+        for (int i = Math.max(0, y-1); i < Math.min(BOX_ROWS, y+2); i++) {
+            for (int j = Math.max(0, x-1); j < Math.min(BOX_COLUMNS, x+2); j++) {
+                if(getFlagStatus(j, i)){
+                    counter = (byte) (counter + 1);
+                }
+            }
+        }
+        return counter;
+    }
+
+    private void revealUnflaggedSurroundingFields(int x, int y){
+        if(mineButtons[y][x].getText().equals("")) return;
+        byte surroundings = (byte) (((mineField[y][x] % 16) + 16)%16);
+        if(getSurroundingFlags(x, y) != surroundings) return;
+        System.out.println("FFUnction worked");
+
+        for (int i = Math.max(0, y-1); i < Math.min(BOX_ROWS, y+2); i++) {
+            for (int j = Math.max(0, x-1); j < Math.min(BOX_COLUMNS, x+2); j++) {
+                if(!getRevealStatus(j, i)){
+                    revealField(j, i);
+                }
+            }
+        }
+    }
+
+    private void revealField(int x, int y){
+        if(!getFlagStatus(x, y)){
+            if(!getMineStatus(x, y)){
+                mineButtons[y][x].setIcon(null);
+                setRevealStatus(x, y, true);
+                if(((mineField[y][x] % 16) + 16)%16 > 0){
+                    mineButtons[y][x].setText(String.valueOf(((mineField[y][x] % 16) + 16)%16));
+                }
+            }
+            else{
+                mineButtons[y][x].setIcon(new ImageIcon(bombIcon));
+                setRevealStatus(x, y, true);
+                mineButtons[y][x].setBackground(Color.RED);
+                isGameOver = true;
+            }
+        }
+    }
+
     private int[] partiallyShuffle(int k, int excludedIndex, int n){
         // returns k non repeating number with range of [0,n)
         if(k >= n || excludedIndex >= n){
@@ -106,7 +153,6 @@ public class MineSweeperPanel extends JPanel{
         ArrayList<Integer> arr = new ArrayList<>();
         HashSet<Integer> numberSet = new HashSet<>();
 
-        int[] reservedRange = new int[]{};
         for (int i = 0; i < n; i++) {
             numberSet.add(i);
         }
@@ -114,14 +160,12 @@ public class MineSweeperPanel extends JPanel{
         int x = excludedIndex % BOX_COLUMNS;
         int y = excludedIndex / BOX_COLUMNS;
 
-
-        boolean decrease = (k >= n);
-        k = k >= n ? n : k;
+        k = Math.min(n, k);
 
         for (int i = Math.max(0, y-1); i < Math.min(BOX_ROWS, y+2); i++) {
             for (int j = Math.max(0, x-1); j < Math.min(BOX_COLUMNS, x+2); j++) {
                 numberSet.remove(i*BOX_COLUMNS + j);
-                if(decrease){ k--;}
+                k--;
             }
         }
 
@@ -129,7 +173,6 @@ public class MineSweeperPanel extends JPanel{
 
         arr.addAll(numberSet);
         Collections.shuffle(arr);
-        numberSet = null;
 
 
         int temp = arr.get(arr.size()-1);
@@ -150,81 +193,84 @@ public class MineSweeperPanel extends JPanel{
     }
 
 
-    private final MouseAdapter squareListener = new MouseAdapter() {
+    private MouseAdapter squareListener = new MouseAdapter() {
         @Override
         public void mousePressed(MouseEvent e) {
-            Rectangle temp = ((JButton)(e.getSource())).getBounds();
-            int x = (int)temp.getX()/BOX_SIZE;
-            int y = (int)temp.getY()/BOX_SIZE;
-            int tempX, tempY;
+            if(!isGameOver){
+                Rectangle temp = ((JButton)(e.getSource())).getBounds();
+                int x = (int)temp.getX()/BOX_SIZE;
+                int y = (int)temp.getY()/BOX_SIZE;
+                int tempX, tempY;
 
-            if(!initialized){
+                if(!initialized){
 
-
-
-
-                int[] bombedFields = partiallyShuffle(MINE_AMOUNT, x + y*BOX_COLUMNS,BOX_ROWS*BOX_COLUMNS);
+                    int[] bombedFields = partiallyShuffle(MINE_AMOUNT, x + y*BOX_COLUMNS,BOX_ROWS*BOX_COLUMNS);
 
 
-                for(int i = 0;i < bombedFields.length; i++){
-                    tempX = bombedFields[i] % BOX_COLUMNS;
-                    tempY = bombedFields[i] / BOX_COLUMNS;
-                    mineButtons[tempY][tempX].setIcon(new ImageIcon(bombIcon));
-                    setMineStatus(tempX, tempY, true);
-                }
+                    for(int i = 0;i < bombedFields.length; i++){
+                        tempX = bombedFields[i] % BOX_COLUMNS;
+                        tempY = bombedFields[i] / BOX_COLUMNS;
+                        //mineButtons[tempY][tempX].setIcon(new ImageIcon(bombIcon));
+                        setMineStatus(tempX, tempY, true);
+                    }
 
-                for(int i = 0;i < bombedFields.length; i++){
-                    tempX = bombedFields[i] % BOX_COLUMNS;
-                    tempY = bombedFields[i] / BOX_COLUMNS;
-                    increaseSurroundingMineCounts(tempX, tempY);
-                }
+                    for(int i = 0;i < bombedFields.length; i++){
+                        tempX = bombedFields[i] % BOX_COLUMNS;
+                        tempY = bombedFields[i] / BOX_COLUMNS;
+                        increaseSurroundingMineCounts(tempX, tempY);
+                    }
 
-                // y coordinates
-                for (int i = 0; i < BOX_ROWS; i++) {
-                    // x coordinates
-                    for (int j = 0; j < BOX_COLUMNS; j++) {
-                        if(mineField[i][j] % 16 > 0 && mineField[i][j] % 16 < 9 && !getMineStatus(j, i)){
-                            mineButtons[i][j].setIcon(null);
-                            mineButtons[i][j].setForeground(numberColors[mineField[i][j] % 15]);
-                            mineButtons[i][j].setFont(new Font("Arial",Font.BOLD, BOX_SIZE/2));
-                            mineButtons[i][j].setText(String.valueOf(mineField[i][j] % 16));
-                            setRevealStatus(j, i, true);
+                    // y coordinates
+                    for (int i = 0; i < BOX_ROWS; i++) {
+                        // x coordinates
+                        for (int j = 0; j < BOX_COLUMNS; j++) {
+                            if(mineField[i][j] % 16 > 0 && mineField[i][j] % 16 < 9 && !getMineStatus(j, i)){
+                                mineButtons[i][j].setForeground(numberColors[mineField[i][j] % 15]);
+                                mineButtons[i][j].setFont(new Font("Arial",Font.BOLD, BOX_SIZE/2));
+                            }
                         }
                     }
+
+                    initialized = true;
                 }
 
-                initialized = true;
+
+                System.out.println(Integer.toBinaryString(mineField[y][x] & 0xFF));
+
+                //if(!getRevealStatus(x, y)) {
+                    switch (e.getButton()) {
+                        // left click
+                        case 1: {
+                            if(!getFlagStatus(x, y)){
+                                System.out.println("No flag");
+                                if(mineButtons[y][x].getText().equals("")){
+                                    revealField(x, y);
+                                }
+                                else{
+                                    System.out.println("function called");
+                                    revealUnflaggedSurroundingFields(x, y);
+                                }
+
+                            }
+
+                            break;
+                        }
+                        // right click
+                        case 3: {
+                            if(!getRevealStatus(x, y)){
+                                if (getFlagStatus(x, y)) {
+                                    mineButtons[y][x].setIcon(new ImageIcon(fieldIcon));
+                                    setFlagStatus(x, y, false);
+                                } else {
+                                    mineButtons[y][x].setIcon(new ImageIcon(flagIcon));
+                                    setFlagStatus(x, y, true);
+                                }
+                            }
+                        }
+                    }
+                //}
             }
 
-
-            System.out.println(Integer.toBinaryString(mineField[y][x] & 0xFF));
-
-            if(!getRevealStatus(x, y)) {
-                switch (e.getButton()) {
-                    // left click
-                    case 1: {
-
-                        if(!getFlagStatus(x, y)){
-                            mineButtons[y][x].setIcon(null);
-                            setRevealStatus(x, y, true);
-                        }
-
-                        break;
-                    }
-                    // right click
-                    case 3: {
-                        if (getFlagStatus(x, y)) {
-                            mineButtons[y][x].setIcon(new ImageIcon(fieldIcon));
-                            setFlagStatus(x, y, false);
-                        } else {
-                            mineButtons[y][x].setIcon(new ImageIcon(flagIcon));
-                            setFlagStatus(x, y, true);
-                        }
-
-
-                    }
-                }
-            }
 
         }
     };
