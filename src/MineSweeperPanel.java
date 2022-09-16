@@ -142,6 +142,21 @@ public class MineSweeperPanel extends JPanel{
         }
     }
 
+    private void revealFields(int x, int y) {
+        if (getRevealStatus(x, y) || getFlagStatus(x, y)) return;
+
+        revealField(x, y);
+        if(mineField[y][x] % 16 != 0) return;
+
+        for (int i = Math.max(0, y - 1); i < Math.min(BOX_ROWS, y + 2); i++) {
+            for (int j = Math.max(0, x - 1); j < Math.min(BOX_COLUMNS, x + 2); j++) {
+                revealFields(j, i);
+            }
+        }
+    }
+
+
+    // performance of this function is possible to increase
     private int[] partiallyShuffle(int k, int excludedIndex, int n){
         // returns k non repeating number with range of [0,n)
         if(k >= n || excludedIndex >= n){
@@ -244,7 +259,7 @@ public class MineSweeperPanel extends JPanel{
                             if(!getFlagStatus(x, y)){
                                 System.out.println("No flag");
                                 if(mineButtons[y][x].getText().equals("")){
-                                    revealField(x, y);
+                                    revealFields(x, y);
                                 }
                                 else{
                                     System.out.println("function called");
